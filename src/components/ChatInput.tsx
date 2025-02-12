@@ -39,9 +39,12 @@ export default function ChatInput({ onSend, onStop, isLoading }: ChatInputProps)
     e.preventDefault();
     if (input.trim() && !isLoading) {
       if (input.startsWith('/')) {
-        const result = await executeCommand(input.trim());
-        if (result) {
-          onSend(result);
+        const commandResult = await executeCommand(input.trim()); // Capture the result
+        if (commandResult) {
+          onSend(commandResult); // Send the command result to onSend
+        } else {
+          // Handle cases where command execution might not return a message
+          console.warn('Command execution did not return a message.');
         }
       } else {
         onSend(input.trim());
@@ -50,6 +53,7 @@ export default function ChatInput({ onSend, onStop, isLoading }: ChatInputProps)
       setSuggestions([]);
     }
   };
+
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {

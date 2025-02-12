@@ -196,28 +196,48 @@ function App() {
   };
 
   const renderPollinationsImage = (url: string) => {
+    const [imageLoaded, setImageLoaded] = useState(false);
+    const pollinationsMatch = url.match(/https:\/\/pollinations\.ai\/prompt\/([^\s]+)/);
+
+    const imageUrl = pollinationsMatch?.[0]; // Safely access the matched URL
+
     return (
       <div className="mt-4 relative">
-        <div className="aspect-w-16 aspect-h-9 bg-gray-800 rounded-lg overflow-hidden">
-          <img
-            src={url}
-            alt="Generated Image"
-            className="w-full h-full object-contain"
-            loading="lazy"
-            onLoad={(e) => {
-              const img = e.target as HTMLImageElement;
-              img.classList.remove('opacity-0');
-            }}
-            style={{ transition: 'opacity 0.3s ease-in-out' }}
-            className="opacity-0"
-          />
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-800 animate-pulse">
-            <span className="text-gray-400">Loading image...</span>
-          </div>
+        <div className="bg-gray-800 rounded-lg overflow-hidden" style={{ width: '512px' }}>
+          {imageUrl && ( // Conditionally render the image part
+            <>
+              <img
+                src={imageUrl}
+                alt="Generated Image"
+                className=""
+                style={{
+                  width: '512px',
+                  height: '512px',
+                  display: 'block'
+                }}
+                loading="lazy"
+                onLoad={(e) => {
+                  const img = e.target as HTMLImageElement;
+                  img.classList.remove('opacity-0');
+                  setImageLoaded(true);
+                }}
+                className="opacity-0"
+              />
+              {!imageLoaded && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-800 animate-pulse">
+                  <span className="text-gray-400">Loading image...</span>
+                </div>
+              )}
+            </>
+          )}
+          {!imageUrl && ( // Render nothing if no imageUrl
+            <div></div>
+          )}
         </div>
       </div>
     );
   };
+
 
   const renderMessageContent = (content: string, messageId: string) => {
     const formattedContent = formatText(content);
@@ -227,7 +247,7 @@ function App() {
     return (
       <div className="relative group w-full">
         <div
-          dangerouslySetInnerHTML={{ __html: formattedContent }}
+          dangerouslySetInnerHTML={{ __html: pollinationsMatch ? formattedContent.replace(pollinationsMatch[0], '') : formattedContent }}
           className="prose prose-invert max-w-none break-words"
         />
         {pollinationsMatch && renderPollinationsImage(pollinationsMatch[0])}
