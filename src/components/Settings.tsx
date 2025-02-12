@@ -8,10 +8,10 @@ interface SettingsProps {
 }
 
 export default function Settings({ isOpen, onClose }: SettingsProps) {
-  const { systemPrompt, updateSystemPrompt, apiKey, baseUrl, updateApiSettings } = useChatStore();
+  const { systemPrompt, updateSystemPrompt, apiKey: defaultApiKey, baseUrl: defaultBaseUrl, updateApiSettings } = useChatStore();
   const [prompt, setPrompt] = useState(systemPrompt);
-  const [key, setKey] = useState(apiKey);
-  const [url, setUrl] = useState(baseUrl);
+  const [key, setKey] = useState(defaultApiKey); // Initialize with defaultApiKey
+  const [url, setUrl] = useState(defaultBaseUrl); // Initialize with defaultBaseUrl
 
   const handleSave = () => {
     updateSystemPrompt(prompt);
@@ -36,7 +36,7 @@ export default function Settings({ isOpen, onClose }: SettingsProps) {
             <X size={20} />
           </button>
         </div>
-        
+
         <div className="p-4 space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-200 mb-2">

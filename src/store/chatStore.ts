@@ -1,20 +1,24 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ChatState, Chat, Message } from '../types/chat';
+import { OpenAI } from 'openai';
+
+const defaultApiKey = import.meta.env.VITE_OPENAI_API_KEY || '';
+const defaultBaseUrl = import.meta.env.VITE_OPENAI_BASE_URL || 'https://models.inference.ai.azure.com';
 
 export const useChatStore = create<ChatState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       chats: [],
       currentChat: null,
       systemPrompt: "You are a helpful AI assistant.\nWhenever the user asks you to generate an image kindly tell the user to use the '/gen' command to generate images",
       pinnedModel: null,
-      apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
-      baseUrl: import.meta.env.VITE_OPENAI_BASE_URL || 'https://models.inference.ai.azure.com',
+      apiKey: defaultApiKey,
+      baseUrl: defaultBaseUrl,
       addChat: (chat) =>
-        set((state) => ({ 
-          chats: [...state.chats, chat], 
-          currentChat: chat.id 
+        set((state) => ({
+          chats: [...state.chats, chat],
+          currentChat: chat.id
         })),
       setCurrentChat: (id) => set({ currentChat: id }),
       updateChat: (id, updatedChat) =>
@@ -43,11 +47,37 @@ export const useChatStore = create<ChatState>()(
         })),
       updateSystemPrompt: (prompt) => set({ systemPrompt: prompt }),
       setPinnedModel: (model) => set({ pinnedModel: model }),
-      updateApiSettings: (settings) => set(settings),
+      updateApiSettings: async (settings) => {
+        const { apiKey, baseUrl } = settings;
+        const testClient = new OpenAI({
+          baseURL: baseUrl,
+          apiKey: apiKey,
+          dangerouslyAllowBrowser: true
+        });
+
+        try {
+          await testClient.chat.completions.create({
+            model: 'gpt-4o', // Or any cheap model
+            messages: [{ role: 'user', content: 'Hello' }],
+          });
+          set({ apiKey, baseUrl });
+          return { success: true };
+        } catch (error: any) {
+          console.error('API Key test failed', error);
+          return { success: false, message: error.message || 'Failed to validate API settings' };
+        }
+      },
     }),
     {
       name: 'chat-storage',
-      version: 1,
+      partialize: (state) => ({
+        chats: state.chats,
+        currentChat: state.currentChat,
+        systemPrompt: state.systemPrompt,
+        pinnedModel: state.pinnedModel,
+        apiKey: state.apiKey,
+        baseUrl: state.baseUrl,
+      }),
     }
   )
 );

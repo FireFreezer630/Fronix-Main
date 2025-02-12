@@ -17,6 +17,7 @@ function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const chat = chats.find(c => c.id === currentChat);
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
 
   const client = new OpenAI({
     baseURL: baseUrl,
@@ -43,7 +44,7 @@ function App() {
 
   const generateChatTitle = async (messages: Message[]) => {
     if (!messages.length) return;
-    
+
     try {
       const response = await client.chat.completions.create({
         messages: [
@@ -105,10 +106,10 @@ function App() {
   };
 
   useEffect(() => {
-    if (shouldScrollToBottom()) {
+    if (!isUserScrolling && shouldScrollToBottom()) {
       smoothScrollToBottom();
     }
-  }, [chat?.messages]);
+  }, [chat?.messages, isUserScrolling]);
 
   const escapeHtml = (text: string) => {
     return text
@@ -170,12 +171,12 @@ function App() {
     // Extract code blocks
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
     const matches = [...content.matchAll(codeBlockRegex)];
-    
+
     if (matches.length > 0) {
       const lastMatch = matches[matches.length - 1];
       const language = lastMatch[1]?.toLowerCase() || 'text';
       const code = lastMatch[2];
-      
+
       return {
         language: language === 'js' ? 'javascript' : language,
         code: code.trim()
@@ -272,6 +273,7 @@ function App() {
     const userMessage: Message = { role: 'user', content };
     addMessage(currentChat, userMessage);
     setIsLoading(true);
+    setIsUserScrolling(false); // Reset user scrolling status on new message
 
     try {
       abortControllerRef.current = new AbortController();
@@ -295,11 +297,11 @@ function App() {
 
       let assistantMessage = '';
       let isFirstChunk = true;
-      
+
       for await (const chunk of response) {
         const content = chunk.choices[0]?.delta?.content || '';
         assistantMessage += content;
-        
+
         if (isFirstChunk) {
           addMessage(currentChat, {
             role: 'assistant',
@@ -329,6 +331,18 @@ function App() {
     }
   };
 
+  const handleScroll = () => {
+    if (!messagesEndRef.current?.parentElement) return;
+    const container = messagesEndRef.current.parentElement;
+    // Set isUserScrolling to true if the user scrolls up
+    if (container.scrollTop < container.scrollHeight - container.clientHeight - 100) {
+      setIsUserScrolling(true);
+    } else {
+      setIsUserScrolling(false); // Reset if scrolled back to bottom
+    }
+  };
+
+
   return (
     <div className="flex h-screen bg-[#343541] relative">
       <div className={`
@@ -338,7 +352,7 @@ function App() {
       `}>
         <Sidebar onClose={() => setSidebarOpen(false)} onNewChat={createNewChat} />
       </div>
-      
+
       <main className="flex-1 flex flex-col relative w-full">
         <div className="fixed top-0 left-0 right-0 bg-[#343541] z-10 border-b border-gray-600">
           <div className="max-w-3xl mx-auto w-full h-14 flex items-center justify-between px-4">
@@ -364,7 +378,10 @@ function App() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto mt-14 pb-24">
+        <div
+          className="flex-1 overflow-y-auto mt-14 pb-24"
+          onScroll={handleScroll} // Attach scroll event listener here
+        >
           {!currentChat ? (
             <div className="flex-1 flex items-center justify-center text-white px-4">
               <div className="text-center">
@@ -404,10 +421,10 @@ function App() {
           )}
         </div>
 
-        <ChatInput 
-          onSend={handleSend} 
+        <ChatInput
+          onSend={handleSend}
           onStop={stopResponse}
-          isLoading={isLoading} 
+          isLoading={isLoading}
         />
 
         {codePreview && (
