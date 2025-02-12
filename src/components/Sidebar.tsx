@@ -1,37 +1,44 @@
 import React, { useState } from 'react';
-import { PlusCircle, MessageSquare, Trash2, Edit, X, Settings as SettingsIcon } from 'lucide-react';
+import { PlusCircle, MessageSquare, Trash2, Edit, Settings as SettingsIcon } from 'lucide-react';
 import { useChatStore } from '../store/chatStore';
 import Settings from './Settings';
 
 interface SidebarProps {
   onClose?: () => void;
+  onNewChat: () => void;
 }
 
-export default function Sidebar({ onClose }: SidebarProps) {
-  const { chats, currentChat, addChat, setCurrentChat, deleteChat, updateChat } = useChatStore();
+export default function Sidebar({ onClose, onNewChat }: SidebarProps) {
+  const { chats, currentChat, setCurrentChat, deleteChat, updateChat } = useChatStore();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  const createNewChat = () => {
-    const newChat = {
-      id: Date.now().toString(),
-      title: 'New Chat',
-      messages: [],
-      model: 'gpt-4o',
-      createdAt: new Date(),
-    };
-    addChat(newChat);
+  const handleNewChat = () => {
+    onNewChat();
     onClose?.();
   };
 
   return (
     <>
       <div className="w-[260px] h-screen bg-[#202123] text-gray-200 flex flex-col">
-        <div className="flex flex-col gap-2 p-3">
+        <div className="p-3">
           <button
-            onClick={createNewChat}
-            className="flex items-center gap-3 w-full p-2.5 rounded-md hover:bg-gray-700 transition-colors border border-gray-600 text-sm"
+            onClick={handleNewChat}
+            style={{
+              marginTop: '50px', // Added marginTop to push button down
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              width: '100%',
+              padding: '0.75rem',
+              borderRadius: '0.375rem',
+              backgroundColor: '#3b82f6', // blue-600 in hex
+              color: 'white',
+              fontWeight: '500',
+              boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)'
+            }}
           >
-            <PlusCircle size={16} />
+            <PlusCircle size={18} />
             <span>New Chat</span>
           </button>
         </div>
@@ -59,18 +66,21 @@ export default function Sidebar({ onClose }: SidebarProps) {
                       updateChat(chat.id, { title: newTitle });
                     }
                   }}
-                  className="p-1 hover:text-white"
+                  className="p-1.5 hover:text-white rounded-md hover:bg-gray-700"
+                  title="Rename chat"
                 >
                   <Edit size={14} />
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    e.stopPropagation();
                     if (confirm('Are you sure you want to delete this chat?')) {
                       deleteChat(chat.id);
                     }
                   }}
-                  className="p-1 hover:text-white"
+                  className="p-1.5 hover:text-white rounded-md hover:bg-gray-700"
+                  title="Delete chat"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -79,10 +89,10 @@ export default function Sidebar({ onClose }: SidebarProps) {
           ))}
         </div>
 
-        <div className="mt-auto p-3 border-t border-gray-600">
+        <div className="sticky bottom-0 bg-[#202123] p-3 border-t border-gray-600">
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="flex items-center gap-3 w-full p-2.5 rounded-md hover:bg-gray-700 transition-colors text-sm"
+            className="flex items-center gap-3 w-full p-3 rounded-md hover:bg-gray-700 transition-colors text-sm"
           >
             <SettingsIcon size={16} />
             <span>Settings</span>

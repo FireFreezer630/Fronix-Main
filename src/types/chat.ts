@@ -16,6 +16,8 @@ export interface ChatState {
   currentChat: string | null;
   systemPrompt: string;
   pinnedModel: string | null;
+  apiKey: string;
+  baseUrl: string;
   addChat: (chat: Chat) => void;
   setCurrentChat: (id: string) => void;
   updateChat: (id: string, chat: Partial<Chat>) => void;
@@ -23,4 +25,5 @@ export interface ChatState {
   addMessage: (chatId: string, message: Message, replace?: boolean) => void;
   updateSystemPrompt: (prompt: string) => void;
   setPinnedModel: (model: string | null) => void;
+  updateApiSettings: (settings: Partial<Pick<ChatState, 'apiKey' | 'baseUrl'>>) => void;
 }

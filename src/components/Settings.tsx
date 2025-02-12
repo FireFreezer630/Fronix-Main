@@ -8,11 +8,17 @@ interface SettingsProps {
 }
 
 export default function Settings({ isOpen, onClose }: SettingsProps) {
-  const { systemPrompt, updateSystemPrompt } = useChatStore();
+  const { systemPrompt, updateSystemPrompt, apiKey, baseUrl, updateApiSettings } = useChatStore();
   const [prompt, setPrompt] = useState(systemPrompt);
+  const [key, setKey] = useState(apiKey);
+  const [url, setUrl] = useState(baseUrl);
 
   const handleSave = () => {
     updateSystemPrompt(prompt);
+    updateApiSettings({
+      apiKey: key,
+      baseUrl: url,
+    });
     onClose();
   };
 
@@ -31,8 +37,37 @@ export default function Settings({ isOpen, onClose }: SettingsProps) {
           </button>
         </div>
         
-        <div className="p-4">
-          <div className="mb-4">
+        <div className="p-4 space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-200 mb-2">
+              API Key
+            </label>
+            <input
+              type="password"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              className="w-full px-3 py-2 bg-[#40414F] text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter your API key..."
+            />
+            <p className="mt-2 text-sm text-gray-400">
+              Your API key will be stored securely in your browser.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-200 mb-2">
+              API Base URL
+            </label>
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="w-full px-3 py-2 bg-[#40414F] text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter API base URL..."
+            />
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-200 mb-2">
               System Prompt
             </label>

@@ -3,7 +3,7 @@ import { Command } from '../types/commands';
 
 const client = new OpenAI({
   baseURL: 'https://models.inference.ai.azure.com',
-  apiKey: import.meta.env.VITE_GITHUB_TOKEN,
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY || 'dummy-key',
   dangerouslyAllowBrowser: true
 });
 

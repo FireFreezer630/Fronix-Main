@@ -8,14 +8,8 @@ import { useChatStore } from './store/chatStore';
 import { Message } from './types/chat';
 import { Bot, User, Menu, Eye, Copy, Check } from 'lucide-react';
 
-const client = new OpenAI({
-  baseURL: 'https://models.inference.ai.azure.com',
-  apiKey: import.meta.env.VITE_GITHUB_TOKEN,
-  dangerouslyAllowBrowser: true
-});
-
 function App() {
-  const { chats, currentChat, addMessage, updateChat, addChat, systemPrompt, pinnedModel } = useChatStore();
+  const { chats, currentChat, addMessage, updateChat, addChat, systemPrompt, pinnedModel, apiKey, baseUrl } = useChatStore();
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [codePreview, setCodePreview] = useState<{ code: string; language: string } | null>(null);
@@ -24,18 +18,61 @@ function App() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const chat = chats.find(c => c.id === currentChat);
 
+  const client = new OpenAI({
+    baseURL: baseUrl,
+    apiKey: apiKey || 'dummy-key',
+    dangerouslyAllowBrowser: true
+  });
+
   useEffect(() => {
     if (chats.length === 0 || !currentChat) {
-      const newChat = {
-        id: Date.now().toString(),
-        title: 'New Chat',
-        messages: [],
-        model: 'gpt-4o',
-        createdAt: new Date(),
-      };
-      addChat(newChat);
+      createNewChat();
     }
   }, [chats.length, currentChat]);
+
+  const createNewChat = () => {
+    const newChat = {
+      id: Date.now().toString(),
+      title: 'New Chat',
+      messages: [],
+      model: 'gpt-4o',
+      createdAt: new Date(),
+    };
+    addChat(newChat);
+  };
+
+  const generateChatTitle = async (messages: Message[]) => {
+    if (!messages.length) return;
+    
+    try {
+      const response = await client.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content: 'Generate a brief title (6 words or less) that summarizes the main topic or intent of this conversation. Respond with only the title, no additional text.'
+          },
+          ...messages.slice(0, 2)
+        ],
+        model: 'gpt-4o',
+        temperature: 0.7,
+        max_tokens: 50,
+        stream: false
+      });
+
+      const title = response.choices[0]?.message?.content?.trim();
+      if (title && currentChat) {
+        updateChat(currentChat, { title });
+      }
+    } catch (error) {
+      console.error('Failed to generate chat title:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (chat?.messages.length === 2 && chat.title === 'New Chat') {
+      generateChatTitle(chat.messages);
+    }
+  }, [chat?.messages.length]);
 
   const shouldScrollToBottom = () => {
     if (!messagesEndRef.current?.parentElement) return true;
@@ -93,10 +130,18 @@ function App() {
       return `<code class="bg-gray-800 px-1 rounded">${escapeHtml(code)}</code>`;
     });
 
-    // Handle headers
-    formattedText = formattedText.replace(/^(#{1,6})\s(.+)$/gm, (match, hashes, content) => {
+    // Handle headers with proper spacing
+    formattedText = formattedText.replace(/^(#{1,6})\s+(.+)$/gm, (match, hashes, content) => {
       const level = hashes.length;
-      return `<h${level} class="text-${level === 1 ? '3xl' : level === 2 ? '2xl' : level === 3 ? 'xl' : 'lg'} font-bold my-4">${content}</h${level}>`;
+      const sizes = {
+        1: 'text-4xl',
+        2: 'text-3xl',
+        3: 'text-2xl',
+        4: 'text-xl',
+        5: 'text-lg',
+        6: 'text-base'
+      };
+      return `<h${level} class="${sizes[level as keyof typeof sizes]} font-bold my-4">${content.trim()}</h${level}>`;
     });
 
     // Style formatting
@@ -149,9 +194,34 @@ function App() {
     }
   };
 
+  const renderPollinationsImage = (url: string) => {
+    return (
+      <div className="mt-4 relative">
+        <div className="aspect-w-16 aspect-h-9 bg-gray-800 rounded-lg overflow-hidden">
+          <img
+            src={url}
+            alt="Generated Image"
+            className="w-full h-full object-contain"
+            loading="lazy"
+            onLoad={(e) => {
+              const img = e.target as HTMLImageElement;
+              img.classList.remove('opacity-0');
+            }}
+            style={{ transition: 'opacity 0.3s ease-in-out' }}
+            className="opacity-0"
+          />
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-800 animate-pulse">
+            <span className="text-gray-400">Loading image...</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderMessageContent = (content: string, messageId: string) => {
     const formattedContent = formatText(content);
     const codeBlock = detectCodeBlocks(content);
+    const pollinationsMatch = content.match(/https:\/\/pollinations\.ai\/prompt\/([^\s]+)/);
 
     return (
       <div className="relative group w-full">
@@ -159,6 +229,7 @@ function App() {
           dangerouslySetInnerHTML={{ __html: formattedContent }}
           className="prose prose-invert max-w-none break-words"
         />
+        {pollinationsMatch && renderPollinationsImage(pollinationsMatch[0])}
         <div className="flex gap-2 mt-2">
           {codeBlock && (
             <button
@@ -173,10 +244,9 @@ function App() {
           <button
             onClick={() => handleCopy(content, messageId)}
             className="inline-flex items-center gap-1 px-2 py-1 bg-gray-700/50 hover:bg-gray-600 rounded-md text-white"
-            title="Copy message"
+            title={copiedMessageId === messageId ? 'Copied!' : 'Copy message'}
           >
             {copiedMessageId === messageId ? <Check size={14} /> : <Copy size={14} />}
-            {copiedMessageId === messageId ? 'Copied!' : 'Copy'}
           </button>
         </div>
       </div>
@@ -266,7 +336,7 @@ function App() {
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:block w-[260px]
       `}>
-        <Sidebar onClose={() => setSidebarOpen(false)} />
+        <Sidebar onClose={() => setSidebarOpen(false)} onNewChat={createNewChat} />
       </div>
       
       <main className="flex-1 flex flex-col relative w-full">
