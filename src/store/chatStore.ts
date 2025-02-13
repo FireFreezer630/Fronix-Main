@@ -11,7 +11,7 @@ export const useChatStore = create<ChatState>()(
     (set, get) => ({
       chats: [],
       currentChat: null,
-      systemPrompt: "You are a helpful AI assistant.\nWhenever the user asks you to generate an image kindly tell the user to use the '/gen' command to generate images",
+      systemPrompt: "You are a helpful AI assistant.",
       pinnedModel: null,
       apiKey: defaultApiKey,
       baseUrl: defaultBaseUrl,
