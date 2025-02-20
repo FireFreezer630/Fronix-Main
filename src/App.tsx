@@ -4,14 +4,17 @@ import Sidebar from './components/Sidebar';
 import ChatInput from './components/ChatInput';
 import ModelSelector from './components/ModelSelector';
 import CodePreview from './components/CodePreview';
+import SearchResults from './components/SearchResults';
 import { useChatStore } from './store/chatStore';
 import { Message } from './types/chat';
 import { Bot, User, Menu, Eye, Copy, Check } from 'lucide-react';
+import Settings from './components/Settings';
 
 function App() {
   const { chats, currentChat, addMessage, updateChat, addChat, systemPrompt, pinnedModel, apiKey, baseUrl } = useChatStore();
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(!apiKey);
   const [codePreview, setCodePreview] = useState<{ code: string; language: string } | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -36,14 +39,14 @@ function App() {
       id: Date.now().toString(),
       title: 'New Chat',
       messages: [],
-      model: 'gpt-4o',
+      model: pinnedModel || 'gpt-4o',
       createdAt: new Date(),
     };
     addChat(newChat);
   };
 
   const generateChatTitle = async (messages: Message[]) => {
-    if (!messages.length) return;
+    if (!messages.length || !apiKey) return;
 
     try {
       const response = await client.chat.completions.create({
@@ -64,7 +67,10 @@ function App() {
       if (title && currentChat) {
         updateChat(currentChat, { title });
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 401) {
+        setIsSettingsOpen(true);
+      }
       console.error('Failed to generate chat title:', error);
     }
   };
@@ -128,7 +134,7 @@ function App() {
 
     // Handle inline code
     formattedText = formattedText.replace(/`([^`]+)`/g, (match, code) => {
-      return `<code class="bg-gray-800 px-1 rounded">${escapeHtml(code)}</code>`;
+      return `<code class="bg-gray-800 px-1 rounded font-mono">${escapeHtml(code)}</code>`;
     });
 
     // Handle headers with proper spacing
@@ -199,29 +205,19 @@ function App() {
     const [imageLoaded, setImageLoaded] = useState(false);
     const pollinationsMatch = url.match(/https:\/\/pollinations\.ai\/prompt\/([^\s]+)/);
 
-    const imageUrl = pollinationsMatch?.[0]; // Safely access the matched URL
+    const imageUrl = pollinationsMatch?.[0];
 
     return (
       <div className="mt-4 relative">
-        <div className="bg-gray-800 rounded-lg overflow-hidden" style={{ width: '512px' }}>
-          {imageUrl && ( // Conditionally render the image part
+        <div className="bg-gray-800 rounded-lg overflow-hidden max-w-full">
+          {imageUrl && (
             <>
               <img
                 src={imageUrl}
                 alt="Generated Image"
-                className=""
-                style={{
-                  width: '512px',
-                  height: '512px',
-                  display: 'block'
-                }}
+                className={`w-full h-auto max-w-2xl mx-auto transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
                 loading="lazy"
-                onLoad={(e) => {
-                  const img = e.target as HTMLImageElement;
-                  img.classList.remove('opacity-0');
-                  setImageLoaded(true);
-                }}
-                className="opacity-0"
+                onLoad={() => setImageLoaded(true)}
               />
               {!imageLoaded && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-800 animate-pulse">
@@ -230,16 +226,17 @@ function App() {
               )}
             </>
           )}
-          {!imageUrl && ( // Render nothing if no imageUrl
-            <div></div>
-          )}
         </div>
       </div>
     );
   };
 
+  const renderMessageContent = (content: string, messageId: string, role: string) => {
+    // Hide search commands in user messages
+    if (role === 'user' && content.startsWith('/search')) {
+      return null;
+    }
 
-  const renderMessageContent = (content: string, messageId: string) => {
     const formattedContent = formatText(content);
     const codeBlock = detectCodeBlocks(content);
     const pollinationsMatch = content.match(/https:\/\/pollinations\.ai\/prompt\/([^\s]+)/);
@@ -285,6 +282,11 @@ function App() {
   const handleSend = async (content: string) => {
     if (!currentChat || !chat) return;
 
+    if (!apiKey) {
+      setIsSettingsOpen(true);
+      return;
+    }
+
     if (content.startsWith('Generating image:')) {
       addMessage(currentChat, { role: 'assistant', content });
       return;
@@ -293,7 +295,7 @@ function App() {
     const userMessage: Message = { role: 'user', content };
     addMessage(currentChat, userMessage);
     setIsLoading(true);
-    setIsUserScrolling(false); // Reset user scrolling status on new message
+    setIsUserScrolling(false);
 
     try {
       abortControllerRef.current = new AbortController();
@@ -335,14 +337,20 @@ function App() {
           }, true);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       if (error.name === 'AbortError') {
         console.log('Response stopped by user');
+      } else if (error?.status === 401) {
+        setIsSettingsOpen(true);
+        addMessage(currentChat, {
+          role: 'assistant',
+          content: 'Error: Invalid API key. Please check your settings and ensure you have entered a valid OpenAI API key.'
+        });
       } else {
         console.error('Error:', error);
         addMessage(currentChat, {
           role: 'assistant',
-          content: 'Sorry, there was an error processing your request. Please try again.'
+          content: 'Sorry, there was an error processing your request. Please check your API settings and try again.'
         });
       }
     } finally {
@@ -354,14 +362,12 @@ function App() {
   const handleScroll = () => {
     if (!messagesEndRef.current?.parentElement) return;
     const container = messagesEndRef.current.parentElement;
-    // Set isUserScrolling to true if the user scrolls up
     if (container.scrollTop < container.scrollHeight - container.clientHeight - 100) {
       setIsUserScrolling(true);
     } else {
-      setIsUserScrolling(false); // Reset if scrolled back to bottom
+      setIsUserScrolling(false);
     }
   };
-
 
   return (
     <div className="flex h-screen bg-[#343541] relative">
@@ -370,7 +376,11 @@ function App() {
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:block w-[260px]
       `}>
-        <Sidebar onClose={() => setSidebarOpen(false)} onNewChat={createNewChat} />
+        <Sidebar 
+          onClose={() => setSidebarOpen(false)} 
+          onNewChat={createNewChat}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+        />
       </div>
 
       <main className="flex-1 flex flex-col relative w-full">
@@ -388,7 +398,7 @@ function App() {
               </h1>
             </div>
             <ModelSelector
-              currentModel={chat?.model || 'gpt-4o'}
+              currentModel={chat?.model || pinnedModel || 'gpt-4o'}
               onModelChange={(model) => {
                 if (currentChat) {
                   updateChat(currentChat, { model });
@@ -400,7 +410,7 @@ function App() {
 
         <div
           className="flex-1 overflow-y-auto mt-14 pb-24"
-          onScroll={handleScroll} // Attach scroll event listener here
+          onScroll={handleScroll}
         >
           {!currentChat ? (
             <div className="flex-1 flex items-center justify-center text-white px-4">
@@ -431,7 +441,7 @@ function App() {
                       )}
                     </div>
                     <div className="min-h-[20px] flex flex-1 flex-col items-start gap-3 overflow-hidden">
-                      {renderMessageContent(message.content, `${index}`)}
+                      {renderMessageContent(message.content, `${index}`, message.role)}
                     </div>
                   </div>
                 </div>
@@ -454,6 +464,11 @@ function App() {
             onClose={() => setCodePreview(null)}
           />
         )}
+
+        <Settings 
+          isOpen={isSettingsOpen} 
+          onClose={() => setIsSettingsOpen(false)} 
+        />
       </main>
     </div>
   );
